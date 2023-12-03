@@ -3,25 +3,31 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using TP3.Models;
+using TP3.Services;
+using TP3.Services.ServicesContracts;
 
 namespace TP3.Controllers
 {
     public class MoviesController : Controller
     {
         private readonly ApplicationDbContext _db;
+        private readonly IMoviesService _moviesService;
 
-        public MoviesController(ApplicationDbContext db)
+        public MoviesController(ApplicationDbContext db, IMoviesService _movieService)
         {
             _db = db;
+            _moviesService = _movieService;
+
         }
         public IActionResult Index()
         {
-            return View(_db.Movie.ToList());
+            
+            return View(_moviesService.GetAllMovies());
         }
 
         public IActionResult Create()
         {
-
+            ViewData["Genres"] = new SelectList(_db.Set<Genre>(), "Id", "Id");
             return View();
         }
 
@@ -32,33 +38,22 @@ namespace TP3.Controllers
 
             if (ModelState.IsValid)
             {
-                if (movie.ImageFile != null && movie.ImageFile.Length > 0)
-                {
-                    var imagePath = Path.Combine("wwwroot/images", movie.ImageFile.FileName);
-                    using (var stream = new FileStream(imagePath, FileMode.Create))
-                    {
-                        movie.ImageFile.CopyTo(stream);
-                    }
-
-                    movie.Photo = $"/images/{movie.ImageFile.FileName}";
-                }
-
-                _db.Movie.Add(movie);
-                _db.SaveChanges();
+                _moviesService.CreateMovie(movie);
                 return RedirectToAction("Index");
             }
+            ViewData["Genres"] = new SelectList(_db.Set<Genre>(), "Id", "Id");
             ViewBag.Errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
             return View("Create", movie);
         }
 
         public IActionResult Edit(int id)
         {
-            var movie = _db.Movie.Find(id);
-
+            var movie = _moviesService.GetMovieById(id);
             if (movie == null)
             {
                 return NotFound();
             }
+            ViewData["Genres"] = new SelectList(_db.Set<Genre>(), "Id", "Id");
 
 
 
@@ -93,17 +88,16 @@ namespace TP3.Controllers
 
                     movie.Photo = $"/images/{movie.ImageFile.FileName}";
                 }
-                _db.Entry(movie).State = EntityState.Modified;
-                _db.SaveChanges();
+                _moviesService.Edit(movie);
                 return RedirectToAction("Index");
             }
-
+            ViewData["Genres"] = new SelectList(_db.Set<Genre>(), "Id", "Id");
             return View(movie);
         }
 
         public IActionResult Delete(int id)
         {
-            var movie = _db.Movie.Find(id);
+            var movie = _moviesService.GetMovieById(id);
 
             if (movie == null)
             {
@@ -136,8 +130,7 @@ namespace TP3.Controllers
             }
 
 
-            _db.Movie   .Remove(movie);
-            _db.SaveChanges();
+            _moviesService.Delete(id);
 
             return RedirectToAction("Index");
         }
@@ -146,8 +139,28 @@ namespace TP3.Controllers
         public IActionResult Details(int? id)
         {
             if (id == null) return Content("unable to find Id");
-            var c = _db.Movie.SingleOrDefault(c => c.Id == id);
+            var c = _moviesService.GetMovieById(id.Value);
             return View(c);
+        }
+
+
+        public IActionResult MoviesByGenre(int id)
+        {
+            var movies = _moviesService.GetMoviesByGenre(id);
+            return View("Index", movies);
+        }
+
+
+        public IActionResult MoviesOrderedAscending()
+        {
+            var movies = _moviesService.GetAllMoviesOrderedAscending();
+            return View("Index", movies);
+        }
+
+        public IActionResult MoviesByUserDefinedGenre(string name)
+        {
+            var movies = _moviesService.GetMoviesByUserDefinedGenre(name);
+            return View("Index", movies);
         }
     }
 }
